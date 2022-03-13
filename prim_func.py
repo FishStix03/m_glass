@@ -3,21 +3,20 @@ from cryptography.fernet import Fernet
 
 #functions contained in this file
 #
-#is_valid_signup(username, pw, re_pw)               //error handling for user signup. 
-#returns 0 if valid, -1 if pws don't match, -2 if the password length is incorrect, -3 for invalid characters in password, 1 if username is wrong length, 2 if username has invalid characters
-#
+
 #create_acount(username, password, key_file, db)    //inserts the new user data into db. Keyfile is used to encrypt password
 #login(username, password, key_file, db)            //return userid from db, -1 if incorrect password, -2 if username doesn't exist
 
-
-def is_valid_signup(username, pw, re_pw):
+def signup(username, pw, re_pw, key_file, db):
     #check if passwords match
     if pw != re_pw:
         print("Passwords don't match")
+        print(pw)
+        print(re_pw)
         return -1
 
     #check the length of the password
-    if len(pw) < 5 and len(pw) > 31:
+    if len(pw) < 5 or len(pw) > 31:
         print("Password must between 6 and 30 characters long")
         return -2
 
@@ -29,15 +28,26 @@ def is_valid_signup(username, pw, re_pw):
     #check length of username
     if len(username) < 5 or len(username) > 31:
         print("Username must between 6 and 30 characters long")
-        return 1
+        return -4
     
     #check characters of username
     if not username.isascii():
         print("Invalid character(s)")
-        return 2
+        return -5
+
+    #check if username exists
+    cursor = db.cursor(buffered=True)
+    cursor.execute("SELECT username FROM accounts")
+    other_names = cursor.fetchall()
+    for x in other_names:
+        x = str(x)
+        x = x[2 : len(x)-3]
+        if x == username:
+            print("Username exists")
+            return -6
 
     #valid
-    return 0
+    return create_acount(username, pw, key_file, db)
 
 def create_acount(username, password, key_file, db):
     cursor = db.cursor()
@@ -49,8 +59,11 @@ def create_acount(username, password, key_file, db):
     encrypted_pw = f.encrypt(password)
     file.close()
     #insert new account into database
-    cursor.execute("INSERT INTO accounts (username, password) VALUES(%s, %s)", (username, encrypted_pw))
+    cursor.execute("INSERT INTO accounts (username, pw) VALUES(%s, %s)", (username, encrypted_pw))
     db.commit()
+    cursor.execute("SELECT id FROM accounts WHERE username = %s", (username, ))
+    account_id = cursor.fetchone()
+    return account_id[0]
 
 def login(username, password, key_file, db):
     #check for username
@@ -63,7 +76,7 @@ def login(username, password, key_file, db):
         x = x[2 : len(x)-3]
         if x == username:
             #fetch encrypted password
-            cursor.execute("SELECT password FROM accounts WHERE username = %s", (username, ))
+            cursor.execute("SELECT pw FROM accounts WHERE username = %s", (username, ))
             encrypted_pw = cursor.fetchone()
             encrypted_pw = encrypted_pw[0]
 
@@ -85,7 +98,7 @@ def login(username, password, key_file, db):
                 account_id = cursor.fetchone()
                 return account_id[0]
                 
-        else:
-            print("username does not exist")
-            return -2
+
+    print("username does not exist")
+    return -2
 

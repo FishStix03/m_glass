@@ -12,7 +12,7 @@ import cv2
 
 def check_for_contact_name(name, uid, db):
     cursor = db.cursor()
-    cursor.execute("SELECT name FROM contacts WHERE uid = %s", (uid, ))
+    cursor.execute("SELECT name FROM contacts WHERE id = %s", (uid, ))
 
     for x in cursor.fetchall():
         if x == name:
@@ -24,29 +24,66 @@ def check_for_contact_name(name, uid, db):
 def create_contact(name, file, uid, db):
     cursor = db.cursor()
 
-    #create variable of encoded face's array
-    img = face_recognition.load_image_file(file)
-    encoded = face_recognition.face_encodings(img)[0]
+    try:
+        #create variable of encoded face's array
+        img = face_recognition.load_image_file(file)
+        encoded = face_recognition.face_encodings(img)[0]
 
     #convert encoded string for datatable and insert it 
-    string_of_array = ""
-    for x in encoded:
-        string_of_array = string_of_array + " " + str(x)
+        string_of_array = ""
+        for x in encoded:
+            string_of_array = string_of_array + " " + str(x)
 
-    cursor.execute("INSERT INTO contacts (name, encoded, uid) VALUES (%s, %s, %s)", (name, string_of_array, uid))
-    db.commit()
-    print("Contact created successfully")
+        cursor.execute("INSERT INTO contacts (name, encoded, id) VALUES (%s, %s, %s)", (name, string_of_array, uid))
+        db.commit()
+        print("Contact created successfully")
+        return 0
+
+    except:
+        return -1
 
 
 def retrieve_all_contacts(uid, db):
     cursor = db.cursor()
     user_contacts = []
-    cursor.execute("SELECT name FROM contacts WHERE uid = %s", (uid, ))
+    cursor.execute("SELECT name FROM contacts WHERE id = %s", (uid, ))
     result = cursor.fetchall()
     for x in result:
         x = str(x)
         x = x[2 : len(x)-3]
         user_contacts.append(x)
+
+    return user_contacts
+
+def delete_contact(name, uid, db):
+    cursor = db.cursor()
+    cursor.execute("DELETE FROM contacts WHERE name = %s AND id = %s", (name, uid))
+    db.commit()
+
+def retrieve_face_encodings(uid, db):
+    encoded_faces = []
+    cursor = db.cursor()
+    cursor.execute("SELECT encoded FROM contacts WHERE id = %s", (uid, ))
+    for string_of_array in cursor.fetchall():
+        #remove garbage characters from data
+        string_of_array = str(string_of_array)
+        string_of_array = string_of_array.replace("(", "")
+        string_of_array = string_of_array.replace(")", "")
+        string_of_array = string_of_array.replace(",", "")
+        string_of_array = string_of_array.replace("\'", "")
+                    
+        #convert string into list of floats
+        li = string_of_array.split(" ")
+        li.pop(0)
+        li = list(map(float, li))
+                    
+        #convert list into array for face_recognition.compare_faces
+        new_encoded = numpy.array(li)
+
+        encoded_faces.append(new_encoded)
+
+    return encoded_faces
+
 
 
 def facial_recog_app(our_encodings, our_names):
